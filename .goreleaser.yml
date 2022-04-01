@@ -1,0 +1,67 @@
+project_name: grpctunnelserver
+builds:
+  - id: grpctunnelserver
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/henderiw/grpc-tunnel/cmd/server/tunnelserver.version={{.Version}} -X github.com/henderiw/grpc-tunnel/cmd/server/tunnelserver.commit={{.ShortCommit}} -X github.com/henderiw/grpc-tunnel/cmd/server/tunnelserver.date={{.Date}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+    #hooks:
+    #  post: upx "{{ .Path }}"
+    main:
+      ./cmd/server/
+#dockers:
+#  - goos: linux
+#    goarch: amd64
+#    image_templates:
+#      # if version starts with v0.0.0 this is a beta build, for which we don't apply the `latest` tag and apply `beta` tag instead
+#      - '{{ $pfx := slice .Version 0 6}}{{- if eq $pfx "v0.0.0"}}ghcr.io/srl-labs/clab:beta{{else}}ghcr.io/srl-labs/clab:latest{{- end }}'
+#      - 'ghcr.io/srl-labs/clab:{{ replace .Version "v" ""}}'
+#    dockerfile: goreleaser.dockerfile
+#    skip_push: false
+#archives:
+#  - replacements:
+#      linux: Linux
+#    files:
+#      - lab-examples/**/*
+checksum:
+  name_template: checksums.txt
+snapshot:
+  name_template: "{{ .Tag }}-next"
+publishers:
+  - name: fury.io deb/rpm packages
+    ids:
+      - grpctunnelserver-nfpms # this id belongs to nfpm section and is used to only upload artifacts from nfpm
+    dir: "{{ dir .ArtifactPath }}"
+    cmd: curl -F package=@{{ .ArtifactName }} https://{{ .Env.FURY_TOKEN }}@push.fury.io/netdevops/
+release:
+  prerelease: auto
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+
+nfpms:
+  - id: grpctunnelserver-nfpms
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    package_name: grpctunnelserver
+    maintainer: Wim Henderickx <wim.henderickx@nokia.com>
+    homepage: https://henderiw.be
+    description: |
+      grpctunnelserver deploys a grpc tunnel srver
+    vendor: Nokia
+    license: GNU GPLv3
+    formats:
+      - rpm
+      - deb
+      - apk
+    bindir: /usr/bin
+    #contents:
+    #  - src: /usr/bin/grpctunnelserver
+    #    dst: /usr/bin/grpctunnelserver
+    #    type: symlink
