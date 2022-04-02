@@ -140,6 +140,8 @@ func (s *GrpcTunnelServerImpl) run() error {
 	s.tunnelServer, err = tunnel.NewServer(tunnel.ServerConfig{
 		AddTargetHandler:    s.tunServerAddTargetHandler,
 		DeleteTargetHandler: s.tunServerDeleteTargetHandler,
+		RegisterHandler: s.tunServerRegisterHandler,
+		Handler: s.tunServerHandler,
 	})
 	if err != nil {
 		s.log.Debug("failed creating tunnel server", "error", err)
