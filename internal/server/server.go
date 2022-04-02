@@ -211,9 +211,11 @@ func (s *GrpcTunnelServerImpl) tunServerDeleteTargetHandler(tt tunnel.Target) er
 }
 
 func (s *GrpcTunnelServerImpl) tunServerRegisterHandler(ss tunnel.ServerSession) error {
+	s.log.Debug("tunServerRegisterHandler", "target", ss)
 	return nil
 }
 
 func (s *GrpcTunnelServerImpl) tunServerHandler(ss tunnel.ServerSession, rwc io.ReadWriteCloser) error {
+	s.log.Debug("tunServerHandler", "target", ss)
 	return nil
 }

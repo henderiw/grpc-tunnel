@@ -1,6 +1,7 @@
 package tunnelclient
 
 import (
+	"github.com/henderiw/grpc-tunnel/internal/client"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/yndd/ndd-runtime/pkg/logging"
@@ -45,7 +46,7 @@ var startCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	startCmd.Flags().StringVarP(&tunnelAddress, "tunnel-address", "a", ":33333", "The address the grpc tunnel server")
+	startCmd.Flags().StringVarP(&tunnelAddress, "tunnel-server-address", "a", "34.79.210.188:57401", "The address the grpc tunnel server")
 	startCmd.Flags().StringVarP(&certFile, "cert-file", "c", "cert/serverCert.pem", "The certificate file.")
 	startCmd.Flags().StringVarP(&keyFile, "key-file", "k", "cert/serverKey.pem", "The key file.")
 	startCmd.Flags().StringVarP(&caFile, "ca-file", "", "", "The ca file.")
