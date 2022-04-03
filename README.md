@@ -44,4 +44,47 @@ grpctunnel version upgrade
 
 ### server
 
+start the server 
+
+```
+grpctunnel server start --cert-file ~/grpctunnel/serverCert.pem --key-file ~/grpctunnel/serverKey.pem -d
+```
+
+### target
+
+start the target, which exposes the local service via the target client.
+
+```
+grpctunnel target start -t ~/grpctunnel/target.cfg -d
+```
+
+a configfile is used to handle the configuration
+
+```
+tunnel_server_default: <
+    tunnel_server_address: "<ip address or dns hostname>:<port>"
+    credentials: <
+        tls: <
+        >
+    >
+>
+tunnel_target: <
+    target: "target1"
+    type: "SSH"
+    dial_address: "localhost:22"
+>
+tunnel_target: <
+    target: "target2"
+    type: "GNMI"
+    dial_address: "localhost:57400"
+>
+```
+
+### client
+
+the client ca be used in conjunction with the ssh client
+
+```
+ssh -o ProxyCommand='grpctunnel client start -s "<ip address or dns hostname>:<port>" -d' <username>@localhost
+```
 
