@@ -160,7 +160,7 @@ func (x *GrpcTunnelTargetImpl) run(ctx context.Context) error {
 		log.Debug("failed to create tunnel target client", "error", err)
 		return err
 	}
-	log.Debug("tunnel target client create...")
+	log.Debug("tunnel target client create...", "targets", x.targets)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
