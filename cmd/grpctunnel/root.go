@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	debug               bool
-	certFile            string
-	keyFile             string
-	caFile              string
+	debug    bool
+	certFile string
+	keyFile  string
+	caFile   string
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -32,8 +32,8 @@ func Execute() {
 func init() {
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "enable debug mode")
-	rootCmd.PersistentFlags().StringVarP(&certFile, "cert-file", "c", "cert/serverCert.pem", "The certificate file.")
-	rootCmd.PersistentFlags().StringVarP(&keyFile, "key-file", "k", "cert/serverKey.pem", "The key file.")
-	rootCmd.PersistentFlags().StringVarP(&caFile, "ca-file", "f", "cert/caCert.pem", "The ca file.")
+	rootCmd.PersistentFlags().StringVarP(&certFile, "cert-file", "c", "", "The certificate file.")
+	rootCmd.PersistentFlags().StringVarP(&keyFile, "key-file", "k", "", "The key file.")
+	rootCmd.PersistentFlags().StringVarP(&caFile, "ca-file", "f", "", "The ca file.")
 
 }
