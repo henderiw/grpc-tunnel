@@ -24,7 +24,7 @@ var serverStartCmd = &cobra.Command{
 
 		s := server.New(
 			server.WithLogger(logging.NewLogrLogger(zlog)),
-			server.WithTunnelServerAddress(tunnelServerAddress),
+			server.WithTunnelServerAddress(serverAddress),
 			server.WithCertFile(certFile),
 			server.WithKeyFile(keyFile),
 			server.WithCaFile(caFile),
