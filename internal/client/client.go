@@ -5,11 +5,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"net"
+	"os"
 	"runtime"
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/openconfig/grpctunnel/bidi"
 	tpb "github.com/openconfig/grpctunnel/proto/tunnel"
 	"github.com/openconfig/grpctunnel/tunnel"
@@ -17,14 +18,15 @@ import (
 	"github.com/yndd/ndd-runtime/pkg/logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
 	errStartGRPCTunnelClient = "cannot start grpc tunnel client"
 
-	googledest        = "google-tunnel-server"
-	googledestAddress = "34.79.210.188:57401"
+	// for setting retry backoff when waiting for target.
+	retryBaseDelay     = time.Second
+	retryMaxDelay      = time.Minute
+	retryRandomization = 0.5
 )
 
 // Option can be used to manipulate Options.
@@ -36,9 +38,15 @@ func WithLogger(l logging.Logger) Option {
 	}
 }
 
-func WithAddress(f string) Option {
+func WithTunnelServerAddress(f string) Option {
 	return func(s GrpcTunnelClient) {
-		s.WithAddress(f)
+		s.WithTunnelServerAddress(f)
+	}
+}
+
+func WithDialTarget(t, tt string) Option {
+	return func(s GrpcTunnelClient) {
+		s.WithDialTarget(t, tt)
 	}
 }
 
@@ -62,101 +70,83 @@ func WithCaFile(f string) Option {
 
 type GrpcTunnelClient interface {
 	WithLogger(logging.Logger)
-	WithAddress(string)
+	WithTunnelServerAddress(string)
+	WithDialTarget(string, string)
 	WithCertFile(string)
 	WithKeyFile(string)
 	WithCaFile(string)
 	Start() error
 }
 
-type tunnelConfig struct {
-	target      map[string]*target
-	destination map[string]*destination
-}
-
-type destination struct {
-	address    string // address of the grpc tunnel server + port
-	inSecure   bool
-	skipVerify bool
-	caFile     string
-	certFile   string
-	keyFile    string
-}
-
-type target struct {
-	ID   string
-	Type string
-}
-
-type tunnelDestinationClient struct {
-	// gRPC connection towards the tunnel server
-	conn *grpc.ClientConn
-	// the gRPC tunnel client
-	client *tunnel.Client
+type config struct {
+	tunnelServerAddress string
+	dialTarget          string
+	dialTargetType      string
+	certFile            string
+	keyFile             string
+	caFile              string
 }
 
 type GrpcTunnelClientImpl struct {
-	ctx       context.Context
-	tunnelCfg *tunnelConfig
+	ctx context.Context
+	cfg *config
 
-	// tunnel client
-	m             sync.Mutex
-	tunnelClients map[string]*tunnelDestinationClient
+	// peers
+	peerMux sync.Mutex
+	peers   map[tunnel.Target]struct{}
+
+	// targets
+	targetMux sync.Mutex
+	targets   map[tunnel.Target]struct{}
 
 	// logger
 	log logging.Logger
 }
 
 func New(opts ...Option) GrpcTunnelClient {
-	s := &GrpcTunnelClientImpl{
-		tunnelCfg: &tunnelConfig{
-			target: map[string]*target{
-				"ssh": {
-					ID:   "testID1",
-					Type: "SSH",
-				},
-			},
-			destination: map[string]*destination{
-				googledest: {
-					address:  googledestAddress,
-					inSecure: false,
-				},
-			},
-		},
-		tunnelClients: make(map[string]*tunnelDestinationClient),
+	x := &GrpcTunnelClientImpl{
+		cfg: &config{},
+		ctx: context.Background(),
+
+		peers:   make(map[tunnel.Target]struct{}),
+		targets: make(map[tunnel.Target]struct{}),
 	}
 
 	for _, opt := range opts {
-		opt(s)
+		opt(x)
 	}
-
-	return s
+	return x
 }
 
-func (s *GrpcTunnelClientImpl) WithLogger(l logging.Logger) {
-	s.log = l
+func (x *GrpcTunnelClientImpl) WithLogger(l logging.Logger) {
+	x.log = l
 }
 
-func (s *GrpcTunnelClientImpl) WithAddress(a string) {
-	//s.cfg.address = a
+func (x *GrpcTunnelClientImpl) WithTunnelServerAddress(a string) {
+	x.cfg.tunnelServerAddress = a
 }
 
-func (s *GrpcTunnelClientImpl) WithCertFile(f string) {
-	//s.cfg.certFile = f
+func (x *GrpcTunnelClientImpl) WithDialTarget(t, tt string) {
+	x.cfg.dialTarget = t
+	x.cfg.dialTargetType = tt
 }
 
-func (s *GrpcTunnelClientImpl) WithKeyFile(f string) {
-	//s.cfg.keyFile = f
+func (x *GrpcTunnelClientImpl) WithCertFile(f string) {
+	x.cfg.certFile = f
 }
 
-func (s *GrpcTunnelClientImpl) WithCaFile(f string) {
-	//s.cfg.caFile = f
+func (x *GrpcTunnelClientImpl) WithKeyFile(f string) {
+	x.cfg.keyFile = f
 }
 
-func (s *GrpcTunnelClientImpl) Start() error {
+func (x *GrpcTunnelClientImpl) WithCaFile(f string) {
+	x.cfg.caFile = f
+}
+
+func (x *GrpcTunnelClientImpl) Start() error {
 	errChannel := make(chan error)
 	go func() {
-		if err := s.run(); err != nil {
+		if err := x.run(x.ctx); err != nil {
 			errChannel <- errors.Wrap(err, errStartGRPCTunnelClient)
 		}
 		errChannel <- nil
@@ -164,25 +154,14 @@ func (s *GrpcTunnelClientImpl) Start() error {
 	return nil
 }
 
-func (s *GrpcTunnelClientImpl) run() error {
-	log := s.log.WithValues("destination address", s.tunnelCfg.destination[googledest].address)
-	log.Debug("run...")
-	opts := []grpc.DialOption{
-		// grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
-	}
-	if s.tunnelCfg.destination[googledest].inSecure {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-		}
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	}
+func (x *GrpcTunnelClientImpl) run(ctx context.Context) error {
+	log := x.log.WithValues("tunnel server address", x.cfg.tunnelServerAddress)
+	log.Debug("grpctunnel client run...")
 
-	log.Debug("client setup ...")
-	ctx := context.Background()
+	// TODO add better certificate handling, right now self signed certificate
+	opts := x.getGrpcOptions()
 
+	// dial to tunnel server with retry
 	defer runtime.UnlockOSThread()
 	var conn *grpc.ClientConn
 	for {
@@ -193,9 +172,9 @@ func (s *GrpcTunnelClientImpl) run() error {
 			var err error
 			gnmiCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
-			conn, err = grpc.DialContext(gnmiCtx, s.tunnelCfg.destination[googledest].address, opts...)
+			conn, err = grpc.DialContext(gnmiCtx, x.cfg.tunnelServerAddress, opts...)
 			if err != nil {
-				log.Debug("tunnel failed to connect", "error", err)
+				log.Debug("failed to connect to grpc tunnel server", "error", err)
 				time.Sleep(5 * time.Second)
 				continue
 			}
@@ -205,68 +184,122 @@ func (s *GrpcTunnelClientImpl) run() error {
 	defer conn.Close()
 
 	client, err := tunnel.NewClient(tpb.NewTunnelClient(conn), tunnel.ClientConfig{
-		RegisterHandler: func(t tunnel.Target) error { return nil },
-		Handler:         s.tunnelHandlerFunc(googledest),
-	}, nil)
+		PeerAddHandler: x.peerAddHandler(),
+		PeerDelHandler: x.peerDelHandler(),
+		Subscriptions:  []string{x.cfg.dialTargetType},
+	}, x.targets)
 	if err != nil {
-		s.log.Debug("failed to create tunnel client", "error", err)
+		log.Debug("failed to create tunnel client", "error", err)
 		return err
 	}
-	log.Debug("tunnel destination successfull")
-	// Register and start listening.
-	err = client.Register(ctx)
-	if err != nil {
-		s.log.Debug("tunnel destination registration failed", "error", err)
-		return err
+
+	// register and start client
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	errCh := make(chan error, 2)
+	go func() {
+		if err := client.Register(ctx); err != nil {
+			errCh <- err
+			log.Debug("registration failed", "error", err)
+			return
+		}
+		client.Start(ctx)
+		if err := client.Error(); err != nil {
+			log.Debug("client start failed", "error", err)
+			errCh <- err
+		}
+	}()
+
+	dialTarget := tunnel.Target{
+		ID:   x.cfg.dialTarget,
+		Type: x.cfg.dialTargetType,
 	}
-	log.Debug("tunnel client registered")
-	s.m.Lock()
-	defer s.m.Unlock()
-	s.tunnelClients[googledest] = &tunnelDestinationClient{
-		conn:   conn,
-		client: client,
+	foundDialTarget := func() bool {
+		x.peerMux.Lock()
+		defer x.peerMux.Unlock()
+		_, ok := x.peers[dialTarget]
+		return ok
 	}
 
-	// create targets
-	for _, t := range s.tunnelCfg.target {
-		log.Debug("target handler", "ID", t.ID, "Type", t.Type)
-		s.startTunnelHandlerDestination(t)
+	// Dial the target with retry.
+	go func() {
+		bo := getBackOff()
+		for !foundDialTarget() {
+			wait := bo.NextBackOff()
+			log.Debug("dial target not found", "dialTarget", dialTarget.ID, "type", dialTarget.Type, "wait", wait)
+			time.Sleep(wait)
+		}
+		session, err := client.NewSession(dialTarget)
+		if err != nil {
+			log.Debug("new session failed", "error", err)
+			errCh <- err
+			return
+		}
+		log.Debug("new session established", "dialTarget", dialTarget)
+
+		// Once a tunnel session is established, it connects it to a stdio.
+		stdio := &stdIOConn{Reader: os.Stdin, WriteCloser: os.Stdout}
+		if err = bidi.Copy(session, stdio); err != nil {
+			log.Debug("bidi copy failed", "error", err)
+			return
+		}
+
+	}()
+
+	// Listen for any request to create a new session.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errCh:
+		return fmt.Errorf("exiting: %s", err)
 	}
-
-	// blocking call
-	client.Start(ctx)
-	//
-
-	return client.Error()
 }
 
-func (s *GrpcTunnelClientImpl) tunnelHandlerFunc(dn string) func(t tunnel.Target, i io.ReadWriteCloser) error {
-	return func(t tunnel.Target, i io.ReadWriteCloser) error {
-		dialAddr := s.tunnelCfg.destination[dn].address
-		conn, err := net.Dial("tcp", dialAddr)
-		if err != nil {
-			return fmt.Errorf("failed to dial %s: %v", dialAddr, err)
-		}
-		// start bidirectional copy
-		if err = bidi.Copy(i, conn); err != nil {
-			return fmt.Errorf("bidi copy error: %v", err)
+func (x *GrpcTunnelClientImpl) peerAddHandler() func(t tunnel.Target) error {
+	return func(t tunnel.Target) error {
+		x.peerMux.Lock()
+		defer x.peerMux.Unlock()
+		x.peers[t] = struct{}{}
+		x.log.Debug("peer added", "tunnel target", t)
+		return nil
+	}
+}
+
+func (x *GrpcTunnelClientImpl) peerDelHandler() func(t tunnel.Target) error {
+	return func(t tunnel.Target) error {
+		x.peerMux.Lock()
+		defer x.peerMux.Unlock()
+		if _, ok := x.peers[t]; ok {
+			delete(x.peers, t)
+			x.log.Debug("peer deleted", "tunnel target", t)
+		} else {
+			x.log.Debug("peer delete but did not exists", "tunnel target", t)
 		}
 		return nil
 	}
 }
 
-func (s *GrpcTunnelClientImpl) startTunnelHandlerDestination(t *target) {
-	s.m.Lock()
-	defer s.m.Unlock()
-	tc, ok := s.tunnelClients[googledest]
-	if !ok {
-		s.log.Debug("failed to create target")
-		return
+func (x *GrpcTunnelClientImpl) getGrpcOptions() []grpc.DialOption {
+	opts := []grpc.DialOption{
+		grpc.WithBlock(),
 	}
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+	}
+	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	return opts
+}
 
-	if err := tc.client.NewTarget(tunnel.Target{ID: t.ID, Type: t.Type}); err != nil {
-		s.log.Debug("failed to register target", "ID", t.ID, "Type", t.Type)
-		return
-	}
-	s.log.Debug("registered target", "ID", t.ID, "Type", t.Type)
+func getBackOff() *backoff.ExponentialBackOff {
+	bo := backoff.NewExponentialBackOff()
+	bo.MaxElapsedTime = 0 // Retry Subscribe indefinitely.
+	bo.InitialInterval = retryBaseDelay
+	bo.MaxInterval = retryMaxDelay
+	bo.RandomizationFactor = retryRandomization
+	return bo
+}
+
+type stdIOConn struct {
+	io.Reader
+	io.WriteCloser
 }

@@ -1,4 +1,4 @@
-package tunnelclient
+package grpctunnel
 
 import (
 	"github.com/henderiw/grpc-tunnel/internal/client"
@@ -9,15 +9,11 @@ import (
 )
 
 var (
-	tunnelAddress  string
 	dialTarget     string
 	dialTargetType string
-	certFile       string
-	keyFile        string
-	caFile         string
 )
 
-var startCmd = &cobra.Command{
+var clientStartCmd = &cobra.Command{
 	Use:          "start",
 	Short:        "start the grpc tunnel client",
 	Long:         "start the grpc tunnel client",
@@ -26,11 +22,11 @@ var startCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		//l := logr.NewStdoutLogger()
 		zlog := zap.New(zap.UseDevMode(debug), zap.JSONEncoder())
-		zlog.Info("grpc tunnels client...")
+		zlog.Info("grpc tunnel client...")
 
 		c := client.New(
 			client.WithLogger(logging.NewLogrLogger(zlog)),
-			client.WithTunnelServerAddress(tunnelAddress),
+			client.WithTunnelServerAddress(tunnelServerAddress),
 			client.WithDialTarget(dialTarget, dialTargetType),
 			client.WithCertFile(certFile),
 			client.WithKeyFile(keyFile),
@@ -40,18 +36,15 @@ var startCmd = &cobra.Command{
 			return errors.Wrap(err, "Cannot start tunnel client")
 		}
 
+		// block
 		for {
 		}
-		//return nil
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(startCmd)
-	startCmd.Flags().StringVarP(&tunnelAddress, "tunnel-server-address", "a", "34.79.210.188:57401", "The address of the grpc tunnel server")
-	startCmd.Flags().StringVarP(&dialTarget, "dial-target", "t", "", "The remote target to dial")
-	startCmd.Flags().StringVarP(&dialTargetType, "dial-target-type", "", "SSH", "the type of protocol e.g. SSH or GNMI")
-	startCmd.Flags().StringVarP(&certFile, "cert-file", "c", "cert/serverCert.pem", "The certificate file.")
-	startCmd.Flags().StringVarP(&keyFile, "key-file", "k", "cert/serverKey.pem", "The key file.")
-	startCmd.Flags().StringVarP(&caFile, "ca-file", "", "", "The ca file.")
+	clientCmd.AddCommand(clientStartCmd)
+	clientStartCmd.Flags().StringVarP(&dialTarget, "dial-target", "t", "", "The remote target to dial")
+	clientStartCmd.Flags().StringVarP(&dialTargetType, "dial-target-type", "", "SSH", "the type of protocol e.g. SSH or GNMI")
+
 }

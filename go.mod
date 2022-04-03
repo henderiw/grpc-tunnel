@@ -3,6 +3,7 @@ module github.com/henderiw/grpc-tunnel
 go 1.17
 
 require (
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/hashicorp/go-version v1.2.0
 	github.com/openconfig/grpctunnel v0.0.0-20220222153957-e35baf49072c
 	github.com/pkg/errors v0.9.1
