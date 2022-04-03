@@ -78,11 +78,6 @@ func New(opts ...Option) GrpcTunnelTarget {
 		opt(x)
 	}
 
-	// initialize the targets
-	for _, target := range x.config.GetTunnelTarget() {
-		t := tunnel.Target{ID: target.GetTarget(), Type: target.GetType()}
-		x.targets[t] = struct{}{}
-	}
 	return x
 }
 
@@ -110,6 +105,12 @@ func (x *GrpcTunnelTargetImpl) Start() error {
 	}
 
 	x.log.Debug("grpctunnel start", "config", x.config)
+
+	// initialize the targets
+	for _, target := range x.config.GetTunnelTarget() {
+		t := tunnel.Target{ID: target.GetTarget(), Type: target.GetType()}
+		x.targets[t] = struct{}{}
+	}
 
 	// start the grpctunnel target client
 	errChannel := make(chan error)
@@ -169,12 +170,15 @@ func (x *GrpcTunnelTargetImpl) run(ctx context.Context) error {
 		return err
 	}
 
-	for t := range x.targets {
-		if err := client.NewTarget(t); err != nil {
-			log.Debug("failed to register target", "target.ID", t.ID, "target.Type", t.Type, "error", err)
-			return err
+	/*
+		for t := range x.targets {
+			if err := client.NewTarget(t); err != nil {
+				log.Debug("register target failed", "target.ID", t.ID, "target.Type", t.Type, "error", err)
+				return err
+			}
+			log.Debug("register target succeeded", "target.ID", t.ID, "target.Type", t.Type)
 		}
-	}
+	*/
 
 	log.Debug("tunnel target client registered...")
 	client.Start(ctx)
