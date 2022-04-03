@@ -168,6 +168,14 @@ func (x *GrpcTunnelTargetImpl) run(ctx context.Context) error {
 	if err := client.Register(ctx); err != nil {
 		return err
 	}
+
+	for t := range x.targets {
+		if err := client.NewTarget(t); err != nil {
+			log.Debug("failed to register target", "target.ID", t.ID, "target.Type", t.Type, "error", err)
+			return err
+		}
+	}
+
 	log.Debug("tunnel target client registered...")
 	client.Start(ctx)
 	return client.Error()
