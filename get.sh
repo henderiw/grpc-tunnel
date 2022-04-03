@@ -35,6 +35,8 @@ detectOS() {
     mingw*) OS='windows' ;;
     esac
 
+    echo "OS: ${OS}"
+
     if type "rpm" &>/dev/null; then
         PKG_FORMAT="rpm"
     elif type "dpkg" &>/dev/null; then
