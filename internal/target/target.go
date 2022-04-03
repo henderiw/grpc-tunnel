@@ -201,6 +201,10 @@ func (x *GrpcTunnelTargetImpl) getGrpcOptions() ([]grpc.DialOption, error) {
 		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	case len(cred.GetCertFile()) == 0 || len(cred.GetKeyFile()) == 0:
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		
 		o, err := tunnel.DialTLSCredsOpts(cred.GetCaFile())
 		if err != nil {
 			return nil, err
