@@ -8,7 +8,6 @@ import (
 
 var (
 	debug               bool
-	tunnelServerAddress string
 	certFile            string
 	keyFile             string
 	caFile              string
@@ -33,7 +32,6 @@ func Execute() {
 func init() {
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "enable debug mode")
-	rootCmd.Flags().StringVarP(&tunnelServerAddress, "tunnel-server-address", "a", "34.79.210.188:57401", "The address of the grpc tunnel server")
 	rootCmd.PersistentFlags().StringVarP(&certFile, "cert-file", "c", "cert/serverCert.pem", "The certificate file.")
 	rootCmd.PersistentFlags().StringVarP(&keyFile, "key-file", "k", "cert/serverKey.pem", "The key file.")
 	rootCmd.PersistentFlags().StringVarP(&caFile, "ca-file", "", "", "The ca file.")
