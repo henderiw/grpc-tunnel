@@ -45,7 +45,7 @@ var clientStartCmd = &cobra.Command{
 
 func init() {
 	clientCmd.AddCommand(clientStartCmd)
-	clientStartCmd.Flags().StringVarP(&tunnelServerAddress, "tunnel-server-address", "s", "34.79.210.188:57401", "The address of the grpc tunnel server")
+	clientStartCmd.Flags().StringVarP(&tunnelServerAddress, "tunnel-server-address", "s", "", "The address of the grpc tunnel server")
 	clientStartCmd.Flags().StringVarP(&dialTarget, "dial-target", "t", "", "The remote target to dial")
 	clientStartCmd.Flags().StringVarP(&dialTargetType, "dial-target-type", "", "SSH", "the type of protocol e.g. SSH or GNMI")
 
