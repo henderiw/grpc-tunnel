@@ -34,6 +34,6 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "enable debug mode")
 	rootCmd.PersistentFlags().StringVarP(&certFile, "cert-file", "c", "cert/serverCert.pem", "The certificate file.")
 	rootCmd.PersistentFlags().StringVarP(&keyFile, "key-file", "k", "cert/serverKey.pem", "The key file.")
-	rootCmd.PersistentFlags().StringVarP(&caFile, "ca-file", "", "cert/caCert.pem", "The ca file.")
+	rootCmd.PersistentFlags().StringVarP(&caFile, "ca-file", "f", "cert/caCert.pem", "The ca file.")
 
 }
