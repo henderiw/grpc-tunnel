@@ -189,6 +189,7 @@ installFile() {
 # installPkg installs the downloaded version of a package in a deb or rpm format
 installPkg() {
     echo "Preparing to install $BINARY_NAME ${TAG_WO_VER} from package"
+    echo "PKG ${PKG_FORMAT}"
     if [ $PKG_FORMAT == "deb" ]; then
         runAsRoot dpkg -i $TMP_FILE
     elif [ $PKG_FORMAT == "rpm" ]; then
