@@ -16,9 +16,9 @@ var downloadURL = "https://raw.githubusercontent.com/henderiw/grpc-tunnel/master
 // upgradeCmd represents the version command
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
-	Short: "upgrade grpctunnelserver to latest available version",
+	Short: "upgrade grpctunnel to latest available version",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		f, err := ioutil.TempFile("", "grpctunnelserver")
+		f, err := ioutil.TempFile("", "grpctunnel")
 		defer os.Remove(f.Name())
 		if err != nil {
 			return fmt.Errorf("failed to create temp file: %w", err)
