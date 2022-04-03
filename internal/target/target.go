@@ -129,7 +129,10 @@ func (x *GrpcTunnelTargetImpl) run(ctx context.Context) error {
 	log.Debug("grpctunnel target run...")
 
 	// TODO add better certificate handling, right now self signed certificate
-	opts := x.getGrpcOptions()
+	opts, err := x.getGrpcOptions()
+	if err != nil {
+		return err
+	}
 
 	// dial to tunnel server with retry
 	defer runtime.UnlockOSThread()
@@ -185,15 +188,33 @@ func (x *GrpcTunnelTargetImpl) run(ctx context.Context) error {
 	return client.Error()
 }
 
-func (x *GrpcTunnelTargetImpl) getGrpcOptions() []grpc.DialOption {
+func (x *GrpcTunnelTargetImpl) getGrpcOptions() ([]grpc.DialOption, error) {
 	opts := []grpc.DialOption{
 		grpc.WithBlock(),
 	}
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
+
+	cred := x.config.GetTunnelServerDefault()[0].GetCredentials().GetTls()
+	switch {
+	case len(cred.GetCertFile()) == 0 && len(cred.GetKeyFile()) == 0 && len(cred.GetCaFile()) == 0:
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+		}
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	case len(cred.GetCertFile()) == 0 || len(cred.GetKeyFile()) == 0:
+		o, err := tunnel.DialTLSCredsOpts(cred.GetCaFile())
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, o...)
+	default:
+		o, err := tunnel.DialmTLSCredsOpts(cred.GetCertFile(), cred.GetKeyFile(), cred.GetCaFile())
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, o...)
 	}
-	opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
-	return opts
+
+	return opts, nil
 }
 
 func (x *GrpcTunnelTargetImpl) registerHandler() func(t tunnel.Target) error {
