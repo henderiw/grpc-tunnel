@@ -8,6 +8,7 @@ builds:
       - -s -w -X github.com/henderiw/grpc-tunnel/cmd/grpctunnel.version={{.Version}} -X github.com/henderiw/grpc-tunnel/cmd/grpctunnel.commit={{.ShortCommit}} -X github.com/henderiw/grpc-tunnel/cmd/grpctunnel.date={{.Date}}
     goos:
       - linux
+      - darwin
     goarch:
       - amd64
     #hooks:
