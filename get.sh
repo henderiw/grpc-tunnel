@@ -1,8 +1,8 @@
 # The install script is based off of the Apache 2.0 script from Helm,
 # https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3
 
-: ${BINARY_NAME:="grpctunnelserver"}
-: ${PROJECT_NAME:="grpctunnelserver"} # if project name does not match binary name
+: ${BINARY_NAME:="grpctunnel"}
+: ${PROJECT_NAME:="grpctunnel"} # if project name does not match binary name
 : ${USE_SUDO:="true"}
 : ${USE_PKG:="true"} # default --use-pkg flag value. will use package installation by default unless the default is changed to false
 : ${VERIFY_CHECKSUM:="false"}
@@ -123,7 +123,7 @@ checkInstalledVersion() {
             return 0
         else
             # echo "A newer ${BINARY_NAME} ${TAG_WO_VER} is available. Release notes: https://henderiw.be/rn/${TAG_WO_VER}"
-            echo "You are running grpctunnelserver $version version"
+            echo "You are running grpctunnel $version version"
             UPGR_NEEDED="Y"
             # check if stdin is open (i.e. capable of getting users input)
             if [ -t 0 ]; then
